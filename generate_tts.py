@@ -1,13 +1,3 @@
-"""
-{filename}
-==============================================================================
-
-| Example of how to generate a voice (TTS - Text To Speech)
-|
-| The resulting audio sample will be placed in a folder named "results"
-| The input is limited to 1000 characters (it will cut at 1000 in backend)
-"""
-
 import asyncio
 from pathlib import Path
 import json
@@ -51,30 +41,25 @@ async def generateTTS(_str):
 
         version = "v1"
 
-        TTSs = []
+        output_files  = []
 
-        i = 0
-        for text in texts:
+        for i, text in enumerate(texts, start=1):
             tts = await api.low_level.generate_voice(text, voice, seed, opus, version)
-            TTSs.append(tts)
-            i += 1
+
+            # Save each audio chunk to a temporary file on disk
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_file:
+                temp_file.write(tts)
+                temp_file.flush()  # Ensure data is written
+                output_files.append(temp_file.name)  # Keep track of the file path
+            
             print(f"({i}/{len(texts)})")
         
-        merge_audio_data(TTSs, tts_file)
-            
+        merge_audio_data(output_files, tts_file)  # Call the merge function
         logger.info(f"TTS saved in {tts_file}")
 
 dump_file = Path(__file__).parent / "results" / "story.txt"
 
-def merge_audio_data(audio_data_list, output_file):
-    # Write each audio data to temporary files
-    input_files = []
-    for audio_data in audio_data_list:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_input_file:
-            temp_input_file.write(audio_data)
-            temp_input_file.flush()  # Ensure data is written
-            input_files.append(temp_input_file.name)
-
+def merge_audio_data(input_files, output_file):
     # Create a text file for ffmpeg concat
     with tempfile.NamedTemporaryFile(delete=False, suffix='.txt') as concat_file:
         for file in input_files:
@@ -82,7 +67,16 @@ def merge_audio_data(audio_data_list, output_file):
         concat_file.flush()
 
         # Use ffmpeg to concatenate the audio files
-        ffmpeg.input(concat_file.name, format='concat', safe=0).output(output_file).run()
+        try:
+            (
+                ffmpeg
+                .input(concat_file.name, format='concat', safe=0)
+                .output(output_file, c='copy')
+                .run(overwrite_output=True)
+            )
+            print(f'Merged audio written to {output_file}')
+        except ffmpeg.Error as e:
+            print(f'Error: {e}')
 
     # Clean up temporary files
     for file in input_files:
@@ -149,14 +143,17 @@ async def getLastStoryAsTxt():
         target_file = open(dump_file, encoding='utf-8')
 
         json_object = json.loads(target_file.read())
-        texts = extract_keys_from_json(json_object, "text")
+        texts = []
+        for section in json_object["data"]["document"]["sections"].items():
+            texts.append(section[1]["text"])
         target_file.close()
-        target_file = open(dump_file, "w+")
+        target_file = open(dump_file, "w")
         texts_str = ""
         for text in texts:
             texts_str += "\n" + text + "\n"
         target_file.write(texts_str)
         print("Story has been fetched.")
+        target_file.close()
         return texts_str
 
 async def main():
