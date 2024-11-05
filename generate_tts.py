@@ -17,7 +17,7 @@ from pydub import AudioSegment
 
 # this will change during runtime
 tts_file = "results/tts.webm"
-audioSpeed = 1.5
+audioSpeed = 1.0
 
 async def generateTTS(_str):
     d = Path("results")
