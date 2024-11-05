@@ -11,11 +11,13 @@ import os
 import numpy as np
 import soundfile as sf
 import tempfile
+from pydub import AudioSegment
 
 
-# tts_file = "tts.webm"
+
+# this will change during runtime
 tts_file = "results/tts.webm"
-
+audioSpeed = 1.5
 
 async def generateTTS(_str):
     d = Path("results")
@@ -103,23 +105,6 @@ def split_string_to_chunks(text, max_length=1000):
 
     return chunks
 
-def extract_keys_from_json(json_object, keyName):
-    texts = []
-
-    # Recursive function to traverse the JSON object
-    def recurse(obj):
-        if isinstance(obj, dict):
-            for key, value in obj.items():
-                if key == keyName:
-                    texts.append(value)
-                recurse(value)
-        elif isinstance(obj, list):
-            for item in obj:
-                recurse(item)
-
-    recurse(json_object)
-    return texts
-
 async def getLastStoryAsTxt():
     async with API() as api_handler:
         api = api_handler.api
@@ -131,6 +116,8 @@ async def getLastStoryAsTxt():
         decrypt_user_data(story, keystore)
 
         storycontent_id = story["data"]["remoteStoryId"]
+        global tts_file
+        tts_file = f"results/{story["data"]["title"]}.webm"
 
         print("Getting latest story...")
         story_contents = await api.low_level.download_object("storycontent", storycontent_id)
@@ -156,9 +143,22 @@ async def getLastStoryAsTxt():
         target_file.close()
         return texts_str
 
+def changeAudioSpeed(audioFile):
+    print("Changing speed...")
+    global audioSpeed
+    ffmpeg.input(audioFile).filter('atempo', audioSpeed).output("temp_output.webm").run(overwrite_output=True)
+    os.replace("temp_output.webm", audioFile)
+    if os.path.exists("temp_output.webm"):
+        os.remove("temp_output.webm")
+
 async def main():
     #generate full audio of latest story\
     await generateTTS(await getLastStoryAsTxt())
+    global audioSpeed
+    if audioSpeed != 1.0:
+        changeAudioSpeed(tts_file)
+    
+    print("Process Complete!")
 
 if __name__ == "__main__":
     asyncio.run(main())
