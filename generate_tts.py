@@ -12,12 +12,17 @@ import numpy as np
 import soundfile as sf
 import tempfile
 from pydub import AudioSegment
+from datetime import datetime
 
 
 
 # this will change during runtime
-tts_file = "results/tts.webm"
-audioSpeed = 1.0
+tts_file = f"results/storyTTS{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.webm"
+audioSpeed = 0.90
+voice = 0
+#an invalid see will yield you errors, such as making something return a str when it should not
+seed = "seedmix:business_coalition|cadence:0006"
+version = "v2"
 
 async def generateTTS(_str):
     d = Path("results")
@@ -34,20 +39,12 @@ async def generateTTS(_str):
         
         print(f"Generating audio for {len(texts)} chunks.")
 
-        voice = "Crina"
-
-        seed = 0
-
         # opus = False
         opus = True
-
-        version = "v1"
-
         output_files  = []
 
         for i, text in enumerate(texts, start=1):
-            tts = await api.low_level.generate_voice(text, voice, seed, opus, version)
-
+            tts = await api.low_level.generate_voice(text, seed, voice, opus, version)
             # Save each audio chunk to a temporary file on disk
             with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp_file:
                 temp_file.write(tts)
@@ -59,7 +56,7 @@ async def generateTTS(_str):
         merge_audio_data(output_files, tts_file)  # Call the merge function
         logger.info(f"TTS saved in {tts_file}")
 
-dump_file = Path(__file__).parent / "results" / "story.txt"
+dump_file = Path(__file__).parent / "results" / "tmp.txt"
 
 def merge_audio_data(input_files, output_file):
     # Create a text file for ffmpeg concat
@@ -143,6 +140,10 @@ async def getLastStoryAsTxt():
         target_file.close()
         return texts_str
 
+def getTxtFileStory():
+    with open("assets/story.txt", encoding="utf-8") as f:
+        return f.read()
+
 def changeAudioSpeed(audioFile):
     print("Changing speed...")
     global audioSpeed
@@ -152,8 +153,10 @@ def changeAudioSpeed(audioFile):
         os.remove("temp_output.webm")
 
 async def main():
-    #generate full audio of latest story\
-    await generateTTS(await getLastStoryAsTxt())
+    #generate full audio of text file under the assets folder.
+    await generateTTS(getTxtFileStory())
+    #Line below is alternative to try to get your latest story from NovelAI's servers.
+    #await generateTTS(await getLastStoryAsTxt())
     global audioSpeed
     if audioSpeed != 1.0:
         changeAudioSpeed(tts_file)

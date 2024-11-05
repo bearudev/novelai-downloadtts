@@ -2,3 +2,5 @@
 results/story.txt
 results/tts.webm
 *.webm
+*.mp3
+assets/story.txt
